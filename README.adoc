@@ -1,0 +1,26 @@
+## git-split
+Split an old commit in git using vimdiff or meld.
+
+### Installation:
+
+Clone or copy git-split in your $PATH
+
+### Usage:
+
+Create a backup copy of your work.
+
+Run git split at the root of your repository.
+
+```bash
+$ git split <commitish> <filename>
+```
+
+git-split displays the previous contents of the file on the tab on left (.begin) and the future contents on the right (.end)
+
+Edit the file in the central column and save it.
+
+git-split then asks to commit the changes between the left and center column.
+
+Later at asks to commit the changes between the center column and the right column.
+
+To split a commit into more than two run git-split multiple times.

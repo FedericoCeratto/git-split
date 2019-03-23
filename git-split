@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -u
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <commitish> <filename>"
+  exit 1
+fi
+commitish=$1
+filename=$2
+
+commitish=$(git rev-parse $commitish)
+if [ $? -ne 0 ]; then
+  echo "commit not found"
+  exit 1
+fi
+
+# cleanup
+test -f .begin && chmod +w .begin && rm .begin
+test -f .end && chmod +w .end && rm .end
+
+# extract file after the commit to be split
+git --no-pager show "$commitish":"$filename" > .end
+if [ $? -ne 0 ]; then
+  echo "File $filename at commit $commitish not found."
+  echo "Remember to run git split at the root of the repository."
+  exit 1
+fi
+chmod -w .end
+
+handle_error() {
+    lineno="$1"
+    line=$(sed -n "$lineno"p $0)
+    echo -e "\nError in $0 in line $lineno:\n> $line"
+    echo -e "\nYou might be able to recover with git rebase --continue or by cherry-picking commits\n"
+    exit 1
+}
+trap 'handle_error ${LINENO} ${?}' ERR
+
+short=$(git rev-parse --short $commitish)
+GIT_SEQUENCE_EDITOR="sed -i -e 's/^pick $short/edit $short/'" git rebase -i $commitish^
+# check current commit
+if [ $(git rev-parse --verify HEAD) != $commitish ]; then
+  echo -n "git rebase -i --> edit  failed"
+  exit 1
+fi
+# go to the previous commit
+git reset HEAD^
+git checkout "$filename"
+cp "$filename" .begin
+chmod -w .begin
+
+echo
+while true; do
+  read -p "Select editor or continue: [m]eld [v]imdiff [d]one" ans
+  case $ans in
+    m) meld .begin "$filename" .end;;
+    v) vimdiff .begin "$filename" .end;;
+    d) break;;
+  esac
+done
+
+chmod +w .begin
+rm .begin
+if git diff --quiet; then
+  echo "Nothing to commit"
+else
+  git commit "$filename"
+fi
+
+cat .end > "$filename"
+chmod +w .end
+rm .end
+if git diff --quiet; then
+  echo "Nothing to commit"
+else
+  git commit "$filename"
+fi
+git rebase --continue
